@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Neural Pong</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg: #050508;
+    --panel: #08080f;
+    --border: #111128;
+    --accent: #00f0ff;
+    --accent2: #ff2d78;
+    --good: #00ff9d;
+    --warn: #ffcc00;
+    --muted: #334466;
+    --text: #ccd0e0;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; touch-action:none; -webkit-tap-highlight-color:transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    width: 100vw; height: 100vh;
+  }
+
+  canvas { display:block; position:fixed; inset:0; }
+
+  .screen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 200;
+    background: rgba(5,5,8,0.97);
+    padding: 24px;
+    overflow-y: auto;
+  }
+  .screen.hidden { display: none; }
+
+  .logo-eye  { font-size: 8px; letter-spacing: 6px; color: var(--muted); margin-bottom: 8px; }
+  .logo-main {
+    font-family: 'Orbitron', sans-serif; font-size: 50px; font-weight: 900; line-height: 1;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 4px;
+  }
+  .logo-tag { font-size: 8px; letter-spacing: 4px; color: var(--muted); margin-bottom: 28px; }
+
+  .btn-big {
+    font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 3px;
+    padding: 15px 0; border-radius: 50px; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; cursor: pointer;
+    box-shadow: 0 0 30px rgba(0,240,255,0.2);
+    width: 100%; max-width: 340px;
+    transition: transform 0.15s, box-shadow 0.15s;
+    margin-bottom: 10px;
+  }
+  .btn-big:active { transform: scale(0.97); }
+  .btn-big.ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    box-shadow: none;
+  }
+  .btn-big.ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  .card-row { display: flex; gap: 10px; width: 100%; max-width: 340px; margin-bottom: 20px; }
+  .card {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; padding: 16px 8px;
+    border: 1px solid var(--border); border-radius: 14px;
+    background: var(--panel); cursor: pointer;
+    transition: all 0.2s;
+  }
+  .card.sel { border-color: var(--accent); background: rgba(0,240,255,0.06); }
+  .card-icon { font-size: 26px; }
+  .card-name { font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--text); }
+  .card-desc { font-size: 8px; color: var(--muted); text-align: center; line-height: 1.4; }
+
+  .diff-row { display: flex; gap: 8px; width: 100%; max-width: 340px; margin-bottom: 0; }
+  .diff-btn {
+    flex: 1; padding: 10px 4px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--panel);
+    font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    color: var(--muted);
+  }
+  .diff-pips { display: flex; gap: 3px; }
+  .diff-pip  { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
+
+  .diff-btn.easy.sel   { border-color: var(--good);    color: var(--good);    background: rgba(0,255,157,0.07); }
+  .diff-btn.normal.sel { border-color: var(--warn);    color: var(--warn);    background: rgba(255,204,0,0.07); }
+  .diff-btn.hard.sel   { border-color: var(--accent2); color: var(--accent2); background: rgba(255,45,120,0.07); }
+  .diff-btn.easy.sel   .diff-pip.lit { background: var(--good);    box-shadow: 0 0 4px var(--good); }
+  .diff-btn.normal.sel .diff-pip.lit { background: var(--warn);    box-shadow: 0 0 4px var(--warn); }
+  .diff-btn.hard.sel   .diff-pip.lit { background: var(--accent2); box-shadow: 0 0 4px var(--accent2); }
+
+  .s-panel {
+    width: 100%; max-width: 340px;
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px; margin-bottom: 20px;
+    background: var(--panel);
+  }
+  .s-panel-title { font-size: 7px; letter-spacing: 3px; color: var(--muted); margin-bottom: 10px; }
+  .s-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 0; border-bottom: 1px solid var(--border);
+  }
+  .s-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .s-info { display: flex; align-items: center; gap: 10px; }
+  .s-icon { font-size: 18px; }
+  .s-name { font-size: 10px; color: var(--text); }
+  .s-desc { font-size: 7px; color: var(--muted); margin-top: 2px; }
+  .btn-conn {
+    font-family: 'Share Tech Mono', monospace; font-size: 8px; letter-spacing: 1px;
+    padding: 5px 11px; border-radius: 20px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--muted); cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .btn-conn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-conn.on      { border-color: var(--good);  color: var(--good); }
+  .btn-conn.linking { border-color: var(--warn);  color: var(--warn); animation: blink 0.7s infinite; }
+  @keyframes blink { 50% { opacity: 0.2; } }
+
+  .hint { font-size: 8px; color: var(--muted); letter-spacing: 2px; text-align: center; }
+
+  /* HUD */
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px;
+    z-index: 100; pointer-events: none;
+    background: linear-gradient(180deg, rgba(5,5,8,0.9) 0%, transparent 100%);
+  }
+  #hud.hidden { display: none; }
+  .hud-score { font-family: 'Orbitron', sans-serif; font-size: 30px; font-weight: 900; min-width: 40px; }
+  #score-l { color: var(--accent);  text-shadow: 0 0 16px var(--accent);  text-align: left; }
+  #score-r { color: var(--accent2); text-shadow: 0 0 16px var(--accent2); text-align: right; }
+  #hud-center { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  #hud-mode { font-size: 8px; letter-spacing: 3px; color: var(--muted); }
+  #hud-diff { font-size: 8px; letter-spacing: 2px; }
+
+  /* Back button */
+  #btn-back {
+    position: fixed; top: 12px; right: 14px;
+    z-index: 300;
+    font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 2px;
+    padding: 7px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: rgba(8,8,15,0.9);
+    color: var(--muted); cursor: pointer; pointer-events: all;
+    transition: all 0.2s;
+  }
+  #btn-back:hover { border-color: var(--accent2); color: var(--accent2); }
+  #btn-back.hidden { display: none; }
+
+  /* Sensor badges */
+  #sensor-bar {
+    position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; z-index: 100; pointer-events: none;
+  }
+  .s-badge {
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(8,8,15,0.85);
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 3px 10px; font-size: 7px; letter-spacing: 1px;
+    opacity: 0.3; transition: all 0.3s;
+  }
+  .s-badge.on { opacity: 1; }
+  .s-badge.on.eeg  { border-color: #7c6aff; color: #7c6aff; }
+  .s-badge.on.rppg { border-color: var(--accent2); color: var(--accent2); }
+  .s-badge.on.bt   { border-color: var(--good); color: var(--good); }
+  .s-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* Neural bars */
+  #neural-hud {
+    position: fixed; left: 10px; top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 100; pointer-events: none;
+  }
+  #neural-hud.hidden { display: none; }
+  .nb-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .nb-lbl  { font-size: 6px; letter-spacing: 2px; color: var(--muted); }
+  .nb { width: 4px; height: 48px; background: #0d0d1a; border-radius: 2px; overflow: hidden; display: flex; flex-direction: column-reverse; }
+  .nb-fill { width: 100%; border-radius: 2px; transition: height 0.35s ease; }
+  .nb-fill.focus { background: #7c6aff; box-shadow: 0 0 5px #7c6aff; }
+  .nb-fill.calm  { background: var(--good);    box-shadow: 0 0 5px var(--good); }
+  .nb-fill.hr    { background: var(--accent2); box-shadow: 0 0 5px var(--accent2); }
+
+  /* FX */
+  #fx-focus { position:fixed;inset:0;pointer-events:none;z-index:50;opacity:0;box-shadow:inset 0 0 100px rgba(124,106,255,0.45);transition:opacity 0.5s; }
+  #fx-calm  { position:fixed;inset:0;pointer-events:none;z-index:50;opacity:0;box-shadow:inset 0 0 100px rgba(0,255,157,0.3);transition:opacity 0.5s; }
+  #fx-pulse { position:fixed;inset:0;pointer-events:none;z-index:51;opacity:0;background:rgba(255,45,120,0.12);transition:opacity 0.08s; }
+
+  #notify {
+    position:fixed;top:48%;left:50%;transform:translate(-50%,-50%);
+    z-index:150;font-family:'Orbitron',sans-serif;
+    font-size:17px;font-weight:700;letter-spacing:3px;
+    pointer-events:none;opacity:0;transition:opacity 0.3s;
+    text-shadow:0 0 20px currentColor;text-align:center;
+  }
+
+  /* Game Over */
+  #go-screen { gap: 10px; }
+  .go-lbl     { font-size: 8px; letter-spacing: 5px; color: var(--muted); }
+  .go-winner  { font-family:'Orbitron',sans-serif;font-size:30px;font-weight:900; text-shadow:0 0 24px currentColor; }
+  .go-score   { font-family:'Orbitron',sans-serif;font-size:52px;font-weight:900;color:var(--text);letter-spacing:10px; }
+  .go-meta    { font-size:8px;color:var(--muted);letter-spacing:2px; }
+
+  /* Quit confirm */
+  #quit-overlay {
+    position:fixed;inset:0;background:rgba(5,5,8,0.93);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;z-index:400;
+  }
+  #quit-overlay.hidden { display:none; }
+  .quit-title { font-family:'Orbitron',sans-serif;font-size:20px;font-weight:700;color:var(--accent2); }
+  .quit-sub   { font-size:8px;letter-spacing:3px;color:var(--muted); }
+  .quit-btns  { display:flex;gap:10px; }
+  .btn-qy { font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;padding:12px 28px;border-radius:30px;border:none;background:var(--accent2);color:#fff;cursor:pointer;transition:transform 0.15s; }
+  .btn-qy:active { transform:scale(0.96); }
+  .btn-qn { font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;padding:12px 28px;border-radius:30px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.2s; }
+  .btn-qn:hover { border-color:var(--accent);color:var(--accent); }
+
+  /* diff section spacing */
+  #diff-section { width:100%;max-width:340px;margin-bottom:20px; }
+  #diff-section .s-panel-title { font-size:7px;letter-spacing:3px;color:var(--muted);margin-bottom:8px; }
+</style>
+</head>
+<body>
+
+<div id="fx-focus"></div>
+<div id="fx-calm"></div>
+<div id="fx-pulse"></div>
+<div id="notify"></div>
+
+<canvas id="c"></canvas>
+<!-- Hidden video feed used by the Elata rPPG SDK -->
+<video id="rppg-video" autoplay muted playsinline style="position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;"></video>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-score" id="score-l">0</div>
+  <div id="hud-center">
+    <div id="hud-mode">VS AI</div>
+    <div id="hud-diff"></div>
+  </div>
+  <div class="hud-score" id="score-r">0</div>
+</div>
+
+<!-- Back / Quit -->
+<button id="btn-back" class="hidden" onclick="askQuit()">X QUIT</button>
+
+<!-- Neural bars -->
+<div id="neural-hud" class="hidden">
+  <div class="nb-wrap" id="nb-focus-w" style="display:none">
+    <div class="nb"><div class="nb-fill focus" id="nb-focus" style="height:0%"></div></div>
+    <div class="nb-lbl">FCZ</div>
+  </div>
+  <div class="nb-wrap" id="nb-calm-w" style="display:none">
+    <div class="nb"><div class="nb-fill calm" id="nb-calm" style="height:0%"></div></div>
+    <div class="nb-lbl">CLM</div>
+  </div>
+  <div class="nb-wrap" id="nb-hr-w" style="display:none">
+    <div class="nb"><div class="nb-fill hr" id="nb-hr" style="height:0%"></div></div>
+    <div class="nb-lbl">HR</div>
+  </div>
+</div>
+
+<!-- Sensor badges -->
+<div id="sensor-bar">
+  <div class="s-badge eeg"  id="badge-eeg" ><div class="s-dot"></div>EEG</div>
+  <div class="s-badge rppg" id="badge-rppg"><div class="s-dot"></div>rPPG</div>
+  <div class="s-badge bt"   id="badge-bt"  ><div class="s-dot"></div>BT</div>
+</div>
+
+<!-- Quit confirm overlay -->
+<div id="quit-overlay" class="hidden">
+  <div class="quit-title">QUIT MATCH?</div>
+  <div class="quit-sub">CURRENT SCORE WILL BE LOST</div>
+  <div class="quit-btns">
+    <button class="btn-qn" onclick="resumeGame()">RESUME</button>
+    <button class="btn-qy" onclick="confirmQuit()">QUIT</button>
+  </div>
+</div>
+
+<!-- ======== START SCREEN ======== -->
+<div class="screen" id="start-screen">
+  <div class="logo-eye">BIOMETRIC TABLE TENNIS</div>
+  <div class="logo-main">NEURAL<br>PONG</div>
+  <div class="logo-tag">CONNECT YOUR MIND - BEAT YOUR LIMITS</div>
+
+  <!-- Mode cards -->
+  <div class="card-row">
+    <div class="card sel" id="card-1p" onclick="pickMode('ai')">
+      <div class="card-icon">AI</div>
+      <div class="card-name">VS AI</div>
+      <div class="card-desc">1 player vs<br>computer</div>
+    </div>
+    <div class="card" id="card-2p" onclick="pickMode('2p')">
+      <div class="card-icon">2P</div>
+      <div class="card-name">2 PLAYERS</div>
+      <div class="card-desc">local co-op<br>one screen</div>
+    </div>
+  </div>
+
+  <!-- Difficulty -->
+  <div id="diff-section">
+    <div class="s-panel-title">AI DIFFICULTY</div>
+    <div class="diff-row">
+      <button class="diff-btn easy sel" id="diff-easy" onclick="pickDiff('easy')">
+        EASY
+        <div class="diff-pips">
+          <div class="diff-pip lit"></div>
+          <div class="diff-pip"></div>
+          <div class="diff-pip"></div>
+        </div>
+      </button>
+      <button class="diff-btn normal" id="diff-normal" onclick="pickDiff('normal')">
+        NORMAL
+        <div class="diff-pips">
+          <div class="diff-pip lit"></div>
+          <div class="diff-pip lit"></div>
+          <div class="diff-pip"></div>
+        </div>
+      </button>
+      <button class="diff-btn hard" id="diff-hard" onclick="pickDiff('hard')">
+        HARD
+        <div class="diff-pips">
+          <div class="diff-pip lit"></div>
+          <div class="diff-pip lit"></div>
+          <div class="diff-pip lit"></div>
+        </div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Sensors -->
+  <div class="s-panel" style="margin-top:20px;">
+    <div class="s-panel-title">BIOMETRIC SENSORS - CAMERA HEART RATE REQUIRED TO PLAY</div>
+    <div class="s-row">
+      <div class="s-info">
+        <div class="s-icon">EEG</div>
+        <div>
+          <div class="s-name">EEG HEADBAND</div>
+          <div class="s-desc">Focus - slow ball - Calm - bigger paddle</div>
+        </div>
+      </div>
+      <button class="btn-conn" id="btn-eeg" onclick="connectEEG()">CONNECT</button>
+    </div>
+    <div class="s-row">
+      <div class="s-info">
+        <div class="s-icon">CAM</div>
+        <div>
+          <div class="s-name">CAMERA - rPPG (REQUIRED)</div>
+          <div class="s-desc">Elata SDK - Real HR - Speed burst - Local only</div>
+        </div>
+      </div>
+      <button class="btn-conn" id="btn-rppg" onclick="connectRPPG()">CONNECT</button>
+    </div>
+    <div class="s-row">
+      <div class="s-info">
+        <div class="s-icon">BT</div>
+        <div>
+          <div class="s-name">BLUETOOTH HRM</div>
+          <div class="s-desc">HRV - curve shot - Heart rate service only</div>
+        </div>
+      </div>
+      <button class="btn-conn" id="btn-bt" onclick="connectBT()">CONNECT</button>
+    </div>
+    <div style="font-size:7px;color:var(--muted);margin-top:8px;line-height:1.5;text-align:center;letter-spacing:1px;">
+      CAMERA HEART RATE REQUIRED - ALL DATA PROCESSED LOCALLY - NEVER TRANSMITTED
+    </div>
+  </div>
+
+  <button class="btn-big" onclick="startGame()">SERVE</button>
+  <div class="hint" id="ctrl-hint">DRAG PADDLE  -  LEFT PLAYER: W/S  -  RIGHT: UP/DOWN</div>
+</div>
+
+<!-- ======== GAME OVER SCREEN ======== -->
+<div class="screen hidden" id="go-screen">
+  <div class="go-lbl">MATCH OVER</div>
+  <div class="go-winner" id="go-winner">YOU WIN</div>
+  <div class="go-score"  id="go-score">0 - 0</div>
+  <div class="go-meta"   id="go-meta">FIRST TO 7</div>
+  <button class="btn-big" onclick="startGame()" style="margin-top:24px;">REMATCH</button>
+  <button class="btn-big ghost" onclick="showStart()">MENU</button>
+</div>
+
+
+<script type="module">
+// --- Elata Camera Web SDK ------------------------------------------------------------
+import { RppgProcessor } from "https://esm.sh/@elata-biosciences/rppg-web";
+
+// ========================================
+//  CANVAS
+// ========================================
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W, H;
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+window.addEventListener('resize', () => { resize(); if (state === 'playing') initPositions(); });
+resize();
+
+// ========================================
+//  SETTINGS
+// ========================================
+let state      = 'menu';
+let gameMode   = 'ai';
+let difficulty = 'easy';
+const WIN_SCORE = 7;
+const PAD_W = 12, PAD_MAR = 20, BASE_H = 90, BALL_R = 9;
+
+const AI = {
+  easy:   { spd: 3.2, react: 0.30, errorPx: 70,  predict: 0.15 },
+  normal: { spd: 5.5, react: 0.55, errorPx: 25,  predict: 0.60 },
+  hard:   { spd: 9.5, react: 0.92, errorPx: 3,   predict: 0.96 }
+};
+
+// ========================================
+//  SENSORS
+// ========================================
+const S = { eeg:{on:false,focus:0,calm:0}, rppg:{on:false,hr:72}, bt:{on:false,hrv:50} };
+
+// --- EEG (simulated) ------------------------------------------------------------
+window.connectEEG = function() {
+  const b = document.getElementById('btn-eeg');
+  b.className = 'btn-conn linking'; b.textContent = 'LINKING...';
+  setTimeout(() => {
+    S.eeg.on = true; b.className = 'btn-conn on'; b.textContent = 'LIVE';
+    document.getElementById('badge-eeg').classList.add('on');
+    document.getElementById('nb-focus-w').style.display = '';
+    document.getElementById('nb-calm-w').style.display = '';
+    startEEGSim(); notify('EEG LIVE', '#7c6aff');
+  }, 1300);
+};
+
+// --- Bluetooth HRM ------------------------------------------------------------------
+window.connectBT = function() {
+  const b = document.getElementById('btn-bt');
+  b.className = 'btn-conn linking'; b.textContent = 'SCANNING...';
+  const go  = () => { S.bt.on = true; b.className = 'btn-conn on'; b.textContent = 'LIVE'; document.getElementById('badge-bt').classList.add('on'); startBTSim(); notify('BT LINKED','#00ff9d'); };
+  const fail = () => { b.className = 'btn-conn'; b.textContent = 'CONNECT'; notify('BT UNAVAILABLE','#ff2d78'); };
+  if (navigator.bluetooth) {
+    navigator.bluetooth.requestDevice({ filters:[{services:['heart_rate']}], optionalServices:['battery_service'] })
+      .then(go).catch(fail);
+  } else { notify('SIMULATED MODE','#ffcc00'); setTimeout(go, 1200); }
+};
+
+// --- rPPG via @elata-biosciences/rppg-web ---------------------------------------------------------
+// Uses RppgProcessor.pushSample() - the low-level API that works without
+// WASM bundling. Green-channel pixel values are extracted from the camera
+// stream at 30fps and fed directly into the Elata processor.
+let _rppgProcessor = null;
+let _rppgRaf = null;
+const _rppgCanvas = document.createElement('canvas');
+const _rppgCtx = _rppgCanvas.getContext('2d', { willReadFrequently: true });
+_rppgCanvas.width = 64; _rppgCanvas.height = 64;
+
+window.connectRPPG = async function() {
+  const b = document.getElementById('btn-rppg');
+  b.className = 'btn-conn linking'; b.textContent = 'REQUESTING...';
+  try {
+    const videoEl = document.getElementById('rppg-video');
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } }
+    });
+    videoEl.srcObject = stream;
+    await videoEl.play();
+
+    // Instantiate the Elata RppgProcessor - sampleRate 30fps, wasm backend
+    _rppgProcessor = new RppgProcessor('wasm', 30);
+
+    // Sample loop: extract green channel and pushSample() into Elata processor
+    function rppgTick() {
+      if (!videoEl.videoWidth) { _rppgRaf = requestAnimationFrame(rppgTick); return; }
+      _rppgCtx.drawImage(videoEl, 0, 0, 64, 64);
+      const px = _rppgCtx.getImageData(0, 0, 64, 64).data;
+      let g = 0;
+      for (let i = 1; i < px.length; i += 4) g += px[i];
+      g /= (64 * 64);
+      // Feed green channel intensity into the Elata processor
+      _rppgProcessor.pushSample(performance.now(), g);
+      const metrics = _rppgProcessor.getMetrics();
+      if (metrics && metrics.bpm > 0) {
+        S.rppg.hr = Math.round(metrics.bpm);
+        const p = Math.max(0, Math.min(100, ((S.rppg.hr - 50) / 80) * 100));
+        const hrBar = document.getElementById('nb-hr');
+        if (hrBar) hrBar.style.height = p + '%';
+        if (S.rppg.hr > 88) {
+          const e = document.getElementById('fx-pulse');
+          e.style.opacity = '1';
+          setTimeout(() => e.style.opacity = '0', 80);
+        }
+      }
+      _rppgRaf = requestAnimationFrame(rppgTick);
+    }
+    _rppgRaf = requestAnimationFrame(rppgTick);
+
+    S.rppg.on = true;
+    b.className = 'btn-conn on'; b.textContent = 'LIVE';
+    document.getElementById('badge-rppg').classList.add('on');
+    document.getElementById('nb-hr-w').style.display = '';
+    notify('rPPG ACTIVE', '#ff2d78');
+  } catch (err) {
+    console.warn('rPPG connect failed:', err);
+    b.className = 'btn-conn'; b.textContent = 'CONNECT';
+    notify(err.name === 'NotAllowedError' ? 'CAMERA DENIED' : 'rPPG UNAVAILABLE', '#ff2d78');
+  }
+};
+
+let _et=0,_btt=0;
+function startEEGSim(){
+  setInterval(()=>{
+    _et+=0.04;
+    S.eeg.focus=Math.max(0,Math.min(100,45+38*Math.sin(_et)+12*Math.sin(_et*2.7)));
+    S.eeg.calm =Math.max(0,Math.min(100,55+32*Math.cos(_et*0.6)));
+    document.getElementById('nb-focus').style.height=S.eeg.focus+'%';
+    document.getElementById('nb-calm').style.height =S.eeg.calm+'%';
+  },200);
+}
+function startBTSim(){ setInterval(()=>{ _btt+=0.06; S.bt.hrv=Math.round(50+35*Math.sin(_btt*0.25)); },300); }
+
+// ========================================
+//  GAME STATE
+// ========================================
+let scoreL,scoreR,ball,padL,padR,particles,frameN;
+let slowFactor,slowTimer,bigPadTimer,curveTimer,curvePower;
+let serving,serveTimer,serveDir;
+
+function initPositions(){
+  if(!padL||!padR) return;
+  padL.x=PAD_MAR; padR.x=W-PAD_MAR-PAD_W;
+  padL.y=padL.targetY=H/2; padR.y=padR.targetY=H/2;
+}
+
+function initGame(){
+  scoreL=0; scoreR=0; particles=[]; frameN=0;
+  slowFactor=1; slowTimer=0; bigPadTimer=0; curveTimer=0; curvePower=0;
+  padL={x:PAD_MAR,         y:H/2,targetY:H/2,h:BASE_H};
+  padR={x:W-PAD_MAR-PAD_W, y:H/2,targetY:H/2,h:BASE_H};
+  resetBall(1,true);
+}
+
+function resetBall(dir,pause){
+  serving=!!pause; serveTimer=75; serveDir=dir;
+  ball={x:W/2,y:H/2,vx:0,vy:0,spin:0,trail:[]};
+}
+
+function launchBall(){
+  serving=false;
+  const spd=5.5, ang=(Math.random()*0.5-0.25);
+  ball.vx=spd*serveDir*Math.cos(ang);
+  ball.vy=spd*Math.sin(ang);
+}
+
+// ========================================
+//  INPUT
+// ========================================
+const keys={};
+document.addEventListener('keydown',e=>keys[e.key]=true);
+document.addEventListener('keyup',  e=>keys[e.key]=false);
+
+let dragSide=null,dragOffY=0;
+canvas.addEventListener('touchstart',e=>{
+  if(state!=='playing') return;
+  const t=e.touches[0];
+  dragSide=t.clientX<W/2?'L':'R';
+  dragOffY=t.clientY-(dragSide==='L'?padL.y:padR.y);
+},{passive:true});
+canvas.addEventListener('touchmove',e=>{
+  if(state!=='playing'||!dragSide) return;
+  const y=e.touches[0].clientY-dragOffY;
+  if(dragSide==='L') padL.targetY=y; else padR.targetY=y;
+},{passive:true});
+canvas.addEventListener('touchend',()=>dragSide=null,{passive:true});
+canvas.addEventListener('mousedown',e=>{
+  if(state!=='playing') return;
+  dragSide=e.clientX<W/2?'L':'R';
+  dragOffY=e.clientY-(dragSide==='L'?padL.y:padR.y);
+});
+canvas.addEventListener('mousemove',e=>{
+  if(!dragSide) return;
+  const y=e.clientY-dragOffY;
+  if(dragSide==='L') padL.targetY=y; else padR.targetY=y;
+});
+canvas.addEventListener('mouseup',()=>dragSide=null);
+
+// ========================================
+//  UPDATE
+// ========================================
+function update(){
+  frameN++;
+  const dt=slowFactor;
+
+  if(serving){
+    serveTimer--;
+    if(serveTimer<=0) launchBall();
+    movePaddles(dt);
+    return;
+  }
+
+  if(slowTimer>0)   { slowTimer--;   if(slowTimer<=0)  { slowFactor=1; document.getElementById('fx-focus').style.opacity='0'; } }
+  if(bigPadTimer>0) { bigPadTimer--; if(bigPadTimer<=0){ padL.h=BASE_H; document.getElementById('fx-calm').style.opacity='0'; } }
+  if(curveTimer>0)  { curveTimer--;  if(curveTimer<=0) curvePower=0; }
+
+  if(S.eeg.on){
+    if(S.eeg.focus>80&&slowFactor===1){ slowFactor=0.45;slowTimer=240;document.getElementById('fx-focus').style.opacity='1';notify('SLOW BALL MODE','#7c6aff'); }
+    if(S.eeg.calm>85&&bigPadTimer<=0) { bigPadTimer=280;padL.h=BASE_H*1.7;document.getElementById('fx-calm').style.opacity='1';notify('BIG PADDLE MODE','#00ff9d'); }
+  }
+  if(S.rppg.on&&S.rppg.hr>88&&Math.abs(ball.vx)<14){ ball.vx*=1.28;ball.vy*=1.28; }
+  if(S.bt.on&&S.bt.hrv>72&&curveTimer<=0){ curvePower=(Math.random()>0.5?1:-1)*0.38;curveTimer=200;notify('CURVE SHOT','#00ff9d'); }
+
+  movePaddles(dt);
+
+  ball.vy+=curvePower*dt;
+  ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
+  ball.spin*=0.97;
+
+  ball.trail.unshift({x:ball.x,y:ball.y});
+  if(ball.trail.length>16) ball.trail.pop();
+
+  if(ball.y-BALL_R<0) { ball.y=BALL_R;   ball.vy*=-1; spawnBounce(ball.x,0); }
+  if(ball.y+BALL_R>H) { ball.y=H-BALL_R; ball.vy*=-1; spawnBounce(ball.x,H); }
+
+  if(ball.vx<0&&ball.x-BALL_R<padL.x+PAD_W&&ball.x+BALL_R>padL.x&&ball.y>padL.y-padL.h/2-BALL_R&&ball.y<padL.y+padL.h/2+BALL_R){
+    ball.x=padL.x+PAD_W+BALL_R;
+    const rel=(ball.y-padL.y)/(padL.h/2);
+    const spd=Math.min(Math.hypot(ball.vx,ball.vy)*1.06,20);
+    ball.vx=spd*Math.cos(rel*0.88); ball.vy=spd*Math.sin(rel*0.88); ball.spin=rel*3;
+    spawnHit(padL.x+PAD_W,ball.y,'#00f0ff');
+  }
+  if(ball.vx>0&&ball.x+BALL_R>padR.x&&ball.x-BALL_R<padR.x+PAD_W&&ball.y>padR.y-padR.h/2-BALL_R&&ball.y<padR.y+padR.h/2+BALL_R){
+    ball.x=padR.x-BALL_R;
+    const rel=(ball.y-padR.y)/(padR.h/2);
+    const spd=Math.min(Math.hypot(ball.vx,ball.vy)*1.06,20);
+    ball.vx=-spd*Math.cos(rel*0.88); ball.vy=spd*Math.sin(rel*0.88); ball.spin=rel*3;
+    spawnHit(padR.x,ball.y,'#ff2d78');
+  }
+
+  if(ball.x<0){ scoreR++; onScore('R'); }
+  if(ball.x>W){ scoreL++; onScore('L'); }
+
+  particles.forEach(p=>{ p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life-=p.decay; });
+  particles=particles.filter(p=>p.life>0);
+
+  document.getElementById('score-l').textContent=scoreL;
+  document.getElementById('score-r').textContent=scoreR;
+}
+
+function movePaddles(dt){
+  const KSP=8;
+  if(keys['w']||keys['W']) padL.targetY-=KSP;
+  if(keys['s']||keys['S']) padL.targetY+=KSP;
+
+  if(gameMode==='2p'){
+    if(keys['ArrowUp'])   padR.targetY-=KSP;
+    if(keys['ArrowDown']) padR.targetY+=KSP;
+  } else {
+    const cfg=AI[difficulty];
+    let predY=ball.y;
+    if(Math.random()<cfg.predict){
+      let px=ball.x,py=ball.y,pvx=ball.vx,pvy=ball.vy,steps=0;
+      while(px<padR.x&&pvx>0&&steps<400){ px+=pvx;py+=pvy; if(py<0||py>H)pvy*=-1; steps++; }
+      predY=py;
+    }
+    const target=predY+(Math.random()-0.5)*cfg.errorPx;
+    const diff=target-padR.y;
+    padR.targetY+=Math.sign(diff)*Math.min(Math.abs(diff)*cfg.react, cfg.spd);
+  }
+
+  const clamp=p=>{
+    p.y+=(p.targetY-p.y)*0.22;
+    p.y=Math.max(p.h/2,Math.min(H-p.h/2,p.y));
+    p.targetY=Math.max(p.h/2,Math.min(H-p.h/2,p.targetY));
+  };
+  clamp(padL); clamp(padR);
+}
+
+function onScore(side){
+  if(scoreL>=WIN_SCORE||scoreR>=WIN_SCORE){ endGame(); return; }
+  resetBall(side==='R'?1:-1,true);
+}
+
+// ========================================
+//  DRAW
+// ========================================
+function draw(){
+  ctx.fillStyle='#050508'; ctx.fillRect(0,0,W,H);
+  drawCourt();
+  if(serving){
+    ctx.save();
+    ctx.globalAlpha=0.55+0.45*Math.sin(frameN*0.15);
+    ctx.font="700 12px 'Orbitron',sans-serif";
+    ctx.fillStyle='#ccd0e0'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const secs=Math.max(1,Math.ceil(serveTimer/25));
+    ctx.fillText('SERVING IN ' + secs + '...', W/2, H/2-52);
+    ctx.restore();
+  }
+  drawTrail();
+  drawPaddle(padL,'#00f0ff');
+  drawPaddle(padR,'#ff2d78');
+  drawBall();
+  drawParticles();
+}
+
+function drawCourt(){
+  ctx.save();
+  ctx.setLineDash([12,12]); ctx.strokeStyle='#0d0d22'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha=0.05; ctx.strokeStyle='#7c6aff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(W/2,H/2,58,0,Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+
+function drawPaddle(p,color){
+  ctx.save();
+  ctx.shadowColor=color; ctx.shadowBlur=22;
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.roundRect(p.x,p.y-p.h/2,PAD_W,p.h,6); ctx.fill();
+  ctx.globalAlpha=0.22; ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.roundRect(p.x+3,p.y-p.h/2+5,PAD_W-6,p.h-10,3); ctx.fill();
+  ctx.restore();
+}
+
+function drawTrail(){
+  ball.trail.forEach((t,i)=>{
+    const a=(1-i/ball.trail.length)*0.3, r=BALL_R*(1-i/ball.trail.length)*0.72;
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.fillStyle=slowFactor<1?'#7c6aff':'#00f0ff';
+    ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=5;
+    ctx.beginPath(); ctx.arc(t.x,t.y,r,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+}
+
+function drawBall(){
+  ctx.save();
+  ctx.shadowColor=slowFactor<1?'#a090ff':'#ffffff'; ctx.shadowBlur=28;
+  ctx.translate(ball.x,ball.y); ctx.rotate(ball.spin*0.08);
+  const g=ctx.createRadialGradient(-3,-3,1,0,0,BALL_R);
+  g.addColorStop(0,'#ffffff');
+  g.addColorStop(0.4,slowFactor<1?'#a090ff':'#80ffff');
+  g.addColorStop(1,slowFactor<1?'#4030aa':'#003366');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,BALL_R,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.save(); ctx.globalAlpha=p.life; ctx.fillStyle=p.color;
+    ctx.shadowColor=p.color; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+}
+
+function spawnHit(x,y,color){
+  for(let i=0;i<14;i++) particles.push({x,y,vx:(Math.random()-0.5)*8,vy:(Math.random()-0.5)*8,life:1,decay:0.055,size:2+Math.random()*5,color});
+}
+function spawnBounce(x,y){
+  for(let i=0;i<7;i++) particles.push({x:x+(Math.random()-0.5)*16,y,vx:(Math.random()-0.5)*4,vy:y===0?Math.random()*5:-Math.random()*5,life:1,decay:0.09,size:1+Math.random()*3,color:'#fff'});
+}
+
+// ========================================
+//  LOOP
+// ========================================
+let raf;
+function loop(){ if(state!=='playing') return; update(); draw(); raf=requestAnimationFrame(loop); }
+
+function idleDraw(){
+  if(state==='playing') return;
+  ctx.fillStyle='#050508'; ctx.fillRect(0,0,W,H);
+  ctx.save(); ctx.setLineDash([12,12]); ctx.strokeStyle='#0d0d22'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.restore();
+  requestAnimationFrame(idleDraw);
+}
+idleDraw();
+
+// ========================================
+//  UI FLOW
+// ========================================
+window.pickMode = function(m){
+  gameMode=m;
+  document.getElementById('card-1p').className='card'+(m==='ai'?' sel':'');
+  document.getElementById('card-2p').className='card'+(m==='2p'?' sel':'');
+  document.getElementById('diff-section').style.display=m==='ai'?'':'none';
+  document.getElementById('ctrl-hint').textContent=m==='ai'
+    ?'DRAG PADDLE  -  USE W / S KEYS TO MOVE'
+    :'LEFT PLAYER: W/S  -  RIGHT PLAYER: UP/DOWN  -  OR DRAG';
+};
+
+window.pickDiff = function(d){
+  difficulty=d;
+  ['easy','normal','hard'].forEach(x=>{
+    document.getElementById('diff-'+x).className='diff-btn '+x+(x===d?' sel':'');
+  });
+};
+
+window.startGame = function(){
+  if (!S.rppg.on) {
+    notify('CAMERA HEART RATE REQUIRED - CONNECT rPPG TO PLAY', '#ff2d78');
+    return;
+  }
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('go-screen').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('btn-back').classList.remove('hidden');
+  document.getElementById('neural-hud').classList.remove('hidden');
+
+  document.getElementById('hud-mode').textContent=gameMode==='ai'?'VS AI':'2 PLAYERS';
+  const el=document.getElementById('hud-diff');
+  if(gameMode==='ai'){
+    const cols={easy:'#00ff9d',normal:'#ffcc00',hard:'#ff2d78'};
+    el.textContent=difficulty.toUpperCase(); el.style.color=cols[difficulty];
+  } else { el.textContent=''; }
+
+  state='playing';
+  initGame();
+  cancelAnimationFrame(raf);
+  loop();
+};
+
+window.askQuit = function(){
+  if(state!=='playing') return;
+  state='paused';
+  cancelAnimationFrame(raf);
+  document.getElementById('quit-overlay').classList.remove('hidden');
+};
+
+window.resumeGame = function(){
+  document.getElementById('quit-overlay').classList.add('hidden');
+  state='playing'; loop();
+};
+
+window.confirmQuit = function(){
+  document.getElementById('quit-overlay').classList.add('hidden');
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('btn-back').classList.add('hidden');
+  document.getElementById('neural-hud').classList.add('hidden');
+  document.getElementById('fx-focus').style.opacity='0';
+  document.getElementById('fx-calm').style.opacity='0';
+  state='menu'; window.showStart(); idleDraw();
+};
+
+function endGame(){
+  state='over';
+  cancelAnimationFrame(raf);
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('btn-back').classList.add('hidden');
+  document.getElementById('neural-hud').classList.add('hidden');
+  document.getElementById('fx-focus').style.opacity='0';
+  document.getElementById('fx-calm').style.opacity='0';
+
+  const lWin=scoreL>=WIN_SCORE;
+  const winTxt=gameMode==='2p'?(lWin?'PLAYER 1 WINS':'PLAYER 2 WINS'):(lWin?'YOU WIN':'AI WINS');
+  const winCol=lWin?'#00f0ff':'#ff2d78';
+  const metas={easy:'EASY MODE',normal:'NORMAL MODE',hard:'HARD MODE'};
+  document.getElementById('go-winner').textContent=winTxt;
+  document.getElementById('go-winner').style.color=winCol;
+  document.getElementById('go-winner').style.textShadow='0 0 24px '+winCol;
+  document.getElementById('go-score').textContent=scoreL+' - '+scoreR;
+  document.getElementById('go-meta').textContent=gameMode==='ai'?metas[difficulty]:'LOCAL MULTIPLAYER - FIRST TO 7';
+  document.getElementById('go-screen').classList.remove('hidden');
+}
+
+window.showStart = function(){
+  document.getElementById('go-screen').classList.add('hidden');
+  document.getElementById('start-screen').classList.remove('hidden');
+  state='menu'; idleDraw();
+};
+
+let _nt;
+function notify(text,color){
+  const el=document.getElementById('notify');
+  el.textContent=text; el.style.color=color; el.style.opacity='1';
+  clearTimeout(_nt); _nt=setTimeout(()=>el.style.opacity='0',1400);
+}
+</script>
+</body>
+</html>
